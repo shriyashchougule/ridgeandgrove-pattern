@@ -5,16 +5,18 @@ from scipy import ndimage
 
 class ImageProcessor:
     def __init__(self):
-        self.bulge_strength = 0.5  # Controls the height of the bulges
-        self.smoothness = 15       # Controls the smoothness of the bulges
-        self.light_direction = np.array([1.0, 1.0, 0.5])  # Light direction vector
-        self.light_intensity = 1.0  # Light intensity
-        self.ambient_light = 0.3   # Ambient light level
+        self.bulge_strength = 0.5      # Controls the height of the bulges
+        self.smoothness = 15           # Controls the smoothness of the bulges
+        self.light_direction = np.array([0.5, 0.5, 1.0])  # Light direction vector (more from above)
+        self.light_intensity = 1.2     # Light intensity
+        self.ambient_light = 0.3       # Ambient light level
+        self.shadow_depth = 0.7        # Controls how deep the shadows appear
+        self.roundness = 2.0           # Controls how rounded the bulges appear
         
     def create_height_map(self, image):
         """
         Create a height map from the Voronoi diagram.
-        White areas will be high (bulges) and black lines will be low (ridges).
+        White areas will be high (bulges) and black lines will be low (valleys).
         """
         # Convert to grayscale if it's a color image
         if len(image.shape) == 3:
@@ -22,8 +24,20 @@ class ImageProcessor:
         else:
             gray = image.copy()
         
-        # Invert so that white areas are high and black areas are low
-        height_map = gray.astype(np.float32) / 255.0
+        # Create a binary image to separate cells from edges
+        _, binary = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+        
+        # Distance transform to create rounded bulges
+        # Each pixel value is the distance to the nearest black pixel
+        dist_transform = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
+        
+        # Normalize the distance transform
+        dist_max = np.max(dist_transform)
+        if dist_max > 0:
+            dist_transform = dist_transform / dist_max
+        
+        # Apply power function to make bulges more rounded
+        height_map = np.power(dist_transform, 1.0 / self.roundness)
         
         # Apply Gaussian blur to smooth the height map
         height_map = cv2.GaussianBlur(height_map, (self.smoothness, self.smoothness), 0)
@@ -57,7 +71,7 @@ class ImageProcessor:
         
         return normal_map
     
-    def apply_lighting(self, normal_map, original_image=None):
+    def apply_lighting(self, normal_map, height_map, original_image=None):
         """
         Apply lighting to the normal map to create a 3D effect.
         """
@@ -66,25 +80,25 @@ class ImageProcessor:
         
         # Compute diffuse lighting (dot product of normal and light direction)
         diffuse = np.sum(normal_map * light_dir, axis=2)
-        diffuse = np.clip(diffuse, 0, 1)  # Clamp to [0, 1]
+        
+        # Add shadow effect based on height map
+        shadow = 1.0 - (1.0 - height_map) * self.shadow_depth
+        
+        # Combine diffuse lighting with shadow
+        lighting = diffuse * shadow
         
         # Apply light intensity and ambient light
-        lighting = self.ambient_light + diffuse * self.light_intensity
+        lighting = self.ambient_light + lighting * self.light_intensity
         lighting = np.clip(lighting, 0, 1)
         
         # Create the lit image
         if original_image is not None and len(original_image.shape) == 3:
-            # Use original image colors
-            hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
-            h, s, v = cv2.split(hsv)
+            # Create a white base image
+            base_color = np.ones_like(original_image) * 255
             
-            # Apply lighting to value channel
-            v = (v.astype(np.float32) / 255.0) * lighting
-            v = np.clip(v * 255, 0, 255).astype(np.uint8)
-            
-            # Merge channels and convert back to BGR
-            hsv = cv2.merge([h, s, v])
-            lit_image = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+            # Apply lighting to create shadows
+            lit_image = base_color * lighting[:, :, np.newaxis]
+            lit_image = np.clip(lit_image, 0, 255).astype(np.uint8)
         else:
             # Create grayscale lit image
             lit_image = (lighting * 255).astype(np.uint8)
@@ -103,9 +117,9 @@ class ImageProcessor:
         normal_map = self.compute_normal_map(height_map)
         
         # Apply lighting
-        result = self.apply_lighting(normal_map, image)
+        result = self.apply_lighting(normal_map, height_map, image)
         
         # Enhance contrast
-        result = cv2.convertScaleAbs(result, alpha=1.2, beta=0)
+        result = cv2.convertScaleAbs(result, alpha=1.1, beta=5)
         
         return result, height_map, normal_map 

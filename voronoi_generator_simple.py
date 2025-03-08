@@ -228,23 +228,35 @@ class VoronoiGeneratorUI:
         bulge_strength_scale = ttk.Scale(effect_frame, from_=0.1, to=1.0, variable=self.bulge_strength_var, orient=tk.HORIZONTAL)
         bulge_strength_scale.grid(row=0, column=1, padx=5, pady=5, sticky=tk.EW)
         
+        # Roundness
+        ttk.Label(effect_frame, text="Roundness:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.roundness_var = tk.DoubleVar(value=self.image_processor.roundness)
+        roundness_scale = ttk.Scale(effect_frame, from_=0.5, to=5.0, variable=self.roundness_var, orient=tk.HORIZONTAL)
+        roundness_scale.grid(row=1, column=1, padx=5, pady=5, sticky=tk.EW)
+        
         # Smoothness
-        ttk.Label(effect_frame, text="Smoothness:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(effect_frame, text="Smoothness:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
         self.smoothness_var = tk.IntVar(value=self.image_processor.smoothness)
         smoothness_scale = ttk.Scale(effect_frame, from_=3, to=31, variable=self.smoothness_var, orient=tk.HORIZONTAL)
-        smoothness_scale.grid(row=1, column=1, padx=5, pady=5, sticky=tk.EW)
+        smoothness_scale.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Shadow depth
+        ttk.Label(effect_frame, text="Shadow Depth:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        self.shadow_depth_var = tk.DoubleVar(value=self.image_processor.shadow_depth)
+        shadow_depth_scale = ttk.Scale(effect_frame, from_=0.1, to=1.0, variable=self.shadow_depth_var, orient=tk.HORIZONTAL)
+        shadow_depth_scale.grid(row=3, column=1, padx=5, pady=5, sticky=tk.EW)
         
         # Light intensity
-        ttk.Label(effect_frame, text="Light Intensity:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(effect_frame, text="Light Intensity:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=5)
         self.light_intensity_var = tk.DoubleVar(value=self.image_processor.light_intensity)
         light_intensity_scale = ttk.Scale(effect_frame, from_=0.1, to=2.0, variable=self.light_intensity_var, orient=tk.HORIZONTAL)
-        light_intensity_scale.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
+        light_intensity_scale.grid(row=4, column=1, padx=5, pady=5, sticky=tk.EW)
         
         # Ambient light
-        ttk.Label(effect_frame, text="Ambient Light:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(effect_frame, text="Ambient Light:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=5)
         self.ambient_light_var = tk.DoubleVar(value=self.image_processor.ambient_light)
         ambient_light_scale = ttk.Scale(effect_frame, from_=0.0, to=1.0, variable=self.ambient_light_var, orient=tk.HORIZONTAL)
-        ambient_light_scale.grid(row=3, column=1, padx=5, pady=5, sticky=tk.EW)
+        ambient_light_scale.grid(row=5, column=1, padx=5, pady=5, sticky=tk.EW)
         
         # Action buttons
         actions_frame = ttk.LabelFrame(self.control_frame, text="Actions")
@@ -287,9 +299,11 @@ class VoronoiGeneratorUI:
         
         # Update image processor parameters
         self.image_processor.bulge_strength = self.bulge_strength_var.get()
+        self.image_processor.roundness = self.roundness_var.get()
         self.image_processor.smoothness = self.smoothness_var.get()
         if self.image_processor.smoothness % 2 == 0:  # Ensure smoothness is odd
             self.image_processor.smoothness += 1
+        self.image_processor.shadow_depth = self.shadow_depth_var.get()
         self.image_processor.light_intensity = self.light_intensity_var.get()
         self.image_processor.ambient_light = self.ambient_light_var.get()
         

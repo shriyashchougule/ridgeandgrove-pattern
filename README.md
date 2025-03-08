@@ -8,8 +8,8 @@ A tool for generating synthetic images using the Voronoi diagram approach with a
 - Adjust number of seed points
 - Choose between random and grid-based point distributions
 - Option to show/hide seed points
-- Apply 3D bulge effect to make white spaces appear as protruding bulges
-- Customize 3D effect parameters (bulge strength, smoothness, lighting)
+- Apply 3D bulge effect to make white spaces appear as protruding rounded bulges
+- Customize 3D effect parameters (bulge strength, roundness, smoothness, shadow depth, lighting)
 - Save both original and 3D effect images
 
 ## Installation
@@ -45,11 +45,21 @@ The Voronoi diagram generator uses the following algorithm:
 ## 3D Bulge Effect
 
 The 3D bulge effect creates a visual representation where:
-- White spaces in the Voronoi diagram appear as protruding bulges
-- Black lines appear as ridges between the bulges
+- White spaces in the Voronoi diagram appear as protruding rounded bulges
+- The shadows between bulges create the appearance of valleys/ridges
 
 This is achieved through the following steps:
-1. Create a height map from the Voronoi diagram (white = high, black = low)
-2. Compute a normal map from the height map using Sobel operators
-3. Apply lighting calculations to create a 3D effect
-4. Enhance contrast for better visual appearance 
+1. Create a height map from the Voronoi diagram using distance transform
+2. Apply power function to create rounded bulges
+3. Compute a normal map from the height map using Sobel operators
+4. Apply lighting calculations with shadow effects to create a 3D appearance
+5. Enhance contrast for better visual appearance
+
+### Customizable 3D Effect Parameters
+
+- **Bulge Strength**: Controls how high the bulges appear
+- **Roundness**: Controls how rounded the bulges appear (higher values = more rounded)
+- **Smoothness**: Controls how smooth the transitions between bulges are
+- **Shadow Depth**: Controls how deep the shadows appear in the valleys
+- **Light Intensity**: Controls the intensity of the directional light
+- **Ambient Light**: Controls the base level of illumination 
