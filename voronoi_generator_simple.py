@@ -9,6 +9,51 @@ from tkinter import ttk, filedialog, colorchooser
 from PIL import Image, ImageTk
 from image_processor import ImageProcessor
 
+# Scrollable Frame class
+class ScrollableFrame(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        
+        # Create a canvas and scrollbar
+        self.canvas = tk.Canvas(self, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        
+        # Configure the canvas
+        self.scrollable_frame = ttk.Frame(self.canvas)
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(
+                scrollregion=self.canvas.bbox("all")
+            )
+        )
+        
+        # Create a window in the canvas to hold the scrollable frame
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack the canvas and scrollbar
+        self.canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind mousewheel to scroll
+        self.bind_mousewheel()
+        
+    def bind_mousewheel(self):
+        # Bind mousewheel to scroll
+        def _on_mousewheel(event):
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        # Bind for different platforms
+        self.canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows
+        self.canvas.bind_all("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"))  # Linux
+        self.canvas.bind_all("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"))  # Linux
+    
+    def unbind_mousewheel(self):
+        # Unbind mousewheel events when the frame is not in focus
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Button-4>")
+        self.canvas.unbind_all("<Button-5>")
+
 class VoronoiGenerator:
     def __init__(self):
         self.width = 800
@@ -116,9 +161,32 @@ class VoronoiGeneratorUI:
         self.main_frame = ttk.Frame(root)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Create control panel
-        self.control_frame = ttk.Frame(self.main_frame, width=300)
-        self.control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
+        # Create scrollable control panel
+        self.control_frame_container = ttk.Frame(self.main_frame, width=350)  # Increased width for better visibility
+        self.control_frame_container.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
+        self.control_frame_container.pack_propagate(False)  # Prevent container from shrinking
+        
+        # Add a title for the settings panel
+        settings_title = ttk.Label(self.control_frame_container, text="Settings Panel", font=("Arial", 12, "bold"))
+        settings_title.pack(pady=(0, 5))
+        
+        # Add a hint about scrolling
+        scroll_hint = ttk.Label(self.control_frame_container, text="(Scroll to see more options)", font=("Arial", 8))
+        scroll_hint.pack(pady=(0, 5))
+        
+        # Add a separator
+        ttk.Separator(self.control_frame_container, orient="horizontal").pack(fill="x", padx=10, pady=5)
+        
+        # Create scrollable frame for controls
+        self.scrollable_control_frame = ScrollableFrame(self.control_frame_container)
+        self.scrollable_control_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Set the control frame to be the scrollable frame
+        self.control_frame = self.scrollable_control_frame.scrollable_frame
+        
+        # Bind events to handle mousewheel focus
+        self.control_frame_container.bind("<Enter>", self._on_enter_control_frame)
+        self.control_frame_container.bind("<Leave>", self._on_leave_control_frame)
         
         # Create image display frame
         self.display_frame = ttk.Frame(self.main_frame)
@@ -258,6 +326,95 @@ class VoronoiGeneratorUI:
         ambient_light_scale = ttk.Scale(effect_frame, from_=0.0, to=1.0, variable=self.ambient_light_var, orient=tk.HORIZONTAL)
         ambient_light_scale.grid(row=5, column=1, padx=5, pady=5, sticky=tk.EW)
         
+        # Uneven Surface controls
+        surface_frame = ttk.LabelFrame(self.control_frame, text="Uneven Surface")
+        surface_frame.pack(fill=tk.X, pady=5)
+        
+        # Enable uneven surface
+        self.surface_enabled_var = tk.BooleanVar(value=self.image_processor.surface_enabled)
+        surface_enabled_check = ttk.Checkbutton(surface_frame, text="Enable Uneven Surface", variable=self.surface_enabled_var)
+        surface_enabled_check.grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
+        
+        # Surface scale
+        ttk.Label(surface_frame, text="Surface Scale:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.surface_scale_var = tk.DoubleVar(value=self.image_processor.surface_scale)
+        surface_scale_scale = ttk.Scale(surface_frame, from_=0.1, to=1.0, variable=self.surface_scale_var, orient=tk.HORIZONTAL)
+        surface_scale_scale.grid(row=1, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Surface complexity
+        ttk.Label(surface_frame, text="Surface Complexity:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.surface_complexity_var = tk.DoubleVar(value=self.image_processor.surface_complexity)
+        surface_complexity_scale = ttk.Scale(surface_frame, from_=1.0, to=5.0, variable=self.surface_complexity_var, orient=tk.HORIZONTAL)
+        surface_complexity_scale.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Surface seed
+        ttk.Label(surface_frame, text="Surface Seed:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        self.surface_seed_var = tk.IntVar(value=self.image_processor.surface_seed)
+        surface_seed_spin = ttk.Spinbox(surface_frame, from_=0, to=1000, textvariable=self.surface_seed_var, width=10)
+        surface_seed_spin.grid(row=3, column=1, padx=5, pady=5)
+        
+        # Randomize seed button
+        randomize_seed_btn = ttk.Button(surface_frame, text="Randomize Seed", 
+                                        command=lambda: self.surface_seed_var.set(np.random.randint(0, 1000)))
+        randomize_seed_btn.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=tk.EW)
+        
+        # Wet Surface controls
+        wet_frame = ttk.LabelFrame(self.control_frame, text="Wet Surface Effect")
+        wet_frame.pack(fill=tk.X, pady=5)
+        
+        # Wetness
+        ttk.Label(wet_frame, text="Wetness:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        self.wetness_var = tk.DoubleVar(value=self.image_processor.wetness)
+        wetness_scale = ttk.Scale(wet_frame, from_=0.0, to=1.0, variable=self.wetness_var, orient=tk.HORIZONTAL)
+        wetness_scale.grid(row=0, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Specular intensity
+        ttk.Label(wet_frame, text="Reflection Intensity:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.specular_intensity_var = tk.DoubleVar(value=self.image_processor.specular_intensity)
+        specular_intensity_scale = ttk.Scale(wet_frame, from_=0.0, to=2.0, variable=self.specular_intensity_var, orient=tk.HORIZONTAL)
+        specular_intensity_scale.grid(row=1, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Specular power
+        ttk.Label(wet_frame, text="Reflection Size:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.specular_power_var = tk.DoubleVar(value=self.image_processor.specular_power)
+        specular_power_scale = ttk.Scale(wet_frame, from_=5.0, to=100.0, variable=self.specular_power_var, orient=tk.HORIZONTAL)
+        specular_power_scale.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Light direction controls
+        ttk.Label(wet_frame, text="Light Direction:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        
+        # Light direction X
+        light_dir_frame = ttk.Frame(wet_frame)
+        light_dir_frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky=tk.EW)
+        
+        ttk.Label(light_dir_frame, text="X:").pack(side=tk.LEFT, padx=5)
+        self.light_dir_x_var = tk.DoubleVar(value=self.image_processor.light_direction[0])
+        light_dir_x_scale = ttk.Scale(light_dir_frame, from_=-1.0, to=1.0, variable=self.light_dir_x_var, orient=tk.HORIZONTAL)
+        light_dir_x_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        # Light direction Y
+        light_dir_frame = ttk.Frame(wet_frame)
+        light_dir_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky=tk.EW)
+        
+        ttk.Label(light_dir_frame, text="Y:").pack(side=tk.LEFT, padx=5)
+        self.light_dir_y_var = tk.DoubleVar(value=self.image_processor.light_direction[1])
+        light_dir_y_scale = ttk.Scale(light_dir_frame, from_=-1.0, to=1.0, variable=self.light_dir_y_var, orient=tk.HORIZONTAL)
+        light_dir_y_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        # Light direction Z
+        light_dir_frame = ttk.Frame(wet_frame)
+        light_dir_frame.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky=tk.EW)
+        
+        ttk.Label(light_dir_frame, text="Z:").pack(side=tk.LEFT, padx=5)
+        self.light_dir_z_var = tk.DoubleVar(value=self.image_processor.light_direction[2])
+        light_dir_z_scale = ttk.Scale(light_dir_frame, from_=0.1, to=2.0, variable=self.light_dir_z_var, orient=tk.HORIZONTAL)
+        light_dir_z_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        # Reflection color
+        ttk.Label(wet_frame, text="Reflection Color:").grid(row=7, column=0, sticky=tk.W, padx=5, pady=5)
+        self.reflection_color_btn = ttk.Button(wet_frame, text="Choose", command=self.choose_reflection_color)
+        self.reflection_color_btn.grid(row=7, column=1, padx=5, pady=5)
+        
         # Action buttons
         actions_frame = ttk.LabelFrame(self.control_frame, text="Actions")
         actions_frame.pack(fill=tk.X, pady=5)
@@ -287,6 +444,14 @@ class VoronoiGeneratorUI:
             
             self.generate_voronoi()
     
+    def choose_reflection_color(self):
+        color = colorchooser.askcolor(title="Choose Reflection Color", 
+                                     initialcolor=tuple(self.image_processor.reflection_color))[0]
+        if color:
+            rgb = np.array(list(map(int, color)))
+            self.image_processor.reflection_color = rgb
+            self.generate_voronoi()
+    
     def generate_voronoi(self):
         # Update generator parameters from UI
         self.generator.width = self.width_var.get()
@@ -306,6 +471,22 @@ class VoronoiGeneratorUI:
         self.image_processor.shadow_depth = self.shadow_depth_var.get()
         self.image_processor.light_intensity = self.light_intensity_var.get()
         self.image_processor.ambient_light = self.ambient_light_var.get()
+        
+        # Update uneven surface parameters
+        self.image_processor.surface_enabled = self.surface_enabled_var.get()
+        self.image_processor.surface_scale = self.surface_scale_var.get()
+        self.image_processor.surface_complexity = self.surface_complexity_var.get()
+        self.image_processor.surface_seed = self.surface_seed_var.get()
+        
+        # Update wet surface parameters
+        self.image_processor.wetness = self.wetness_var.get()
+        self.image_processor.specular_intensity = self.specular_intensity_var.get()
+        self.image_processor.specular_power = self.specular_power_var.get()
+        self.image_processor.light_direction = np.array([
+            self.light_dir_x_var.get(),
+            self.light_dir_y_var.get(),
+            self.light_dir_z_var.get()
+        ])
         
         try:
             # Generate the Voronoi diagram
@@ -376,6 +557,14 @@ class VoronoiGeneratorUI:
                 cv2.imwrite(file_path, self.current_image)
             elif image_type == "processed" and self.processed_image is not None:
                 cv2.imwrite(file_path, self.processed_image)
+    
+    def _on_enter_control_frame(self, event):
+        # Bind mousewheel when mouse enters the control frame
+        self.scrollable_control_frame.bind_mousewheel()
+    
+    def _on_leave_control_frame(self, event):
+        # Unbind mousewheel when mouse leaves the control frame
+        self.scrollable_control_frame.unbind_mousewheel()
 
 def main():
     root = tk.Tk()
