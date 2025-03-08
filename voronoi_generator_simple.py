@@ -7,6 +7,7 @@ from scipy.spatial import Voronoi
 import tkinter as tk
 from tkinter import ttk, filedialog, colorchooser
 from PIL import Image, ImageTk
+from image_processor import ImageProcessor
 
 class VoronoiGenerator:
     def __init__(self):
@@ -102,11 +103,14 @@ class VoronoiGeneratorUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Voronoi Pattern Generator")
-        self.root.geometry("1200x800")
+        self.root.geometry("1600x900")
         
         self.generator = VoronoiGenerator()
+        self.image_processor = ImageProcessor()
         self.current_image = None
-        self.photo_image = None
+        self.processed_image = None
+        self.photo_image_original = None
+        self.photo_image_processed = None
         
         # Create main frame
         self.main_frame = ttk.Frame(root)
@@ -120,9 +124,23 @@ class VoronoiGeneratorUI:
         self.display_frame = ttk.Frame(self.main_frame)
         self.display_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create canvas for image display
-        self.canvas = tk.Canvas(self.display_frame, bg="white")
-        self.canvas.pack(fill=tk.BOTH, expand=True)
+        # Create two canvases for image display
+        self.display_frame_top = ttk.Frame(self.display_frame)
+        self.display_frame_top.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        
+        self.display_frame_bottom = ttk.Frame(self.display_frame)
+        self.display_frame_bottom.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        
+        # Labels for the images
+        ttk.Label(self.display_frame_top, text="Original Voronoi Pattern").pack(anchor=tk.W)
+        ttk.Label(self.display_frame_bottom, text="3D Bulge Effect").pack(anchor=tk.W)
+        
+        # Create canvases for image display
+        self.canvas_original = tk.Canvas(self.display_frame_top, bg="white")
+        self.canvas_original.pack(fill=tk.BOTH, expand=True)
+        
+        self.canvas_processed = tk.Canvas(self.display_frame_bottom, bg="white")
+        self.canvas_processed.pack(fill=tk.BOTH, expand=True)
         
         # Create controls
         self.create_controls()
@@ -200,6 +218,34 @@ class VoronoiGeneratorUI:
         self.bg_color_btn = ttk.Button(appearance_frame, text="Choose", command=lambda: self.choose_color("background"))
         self.bg_color_btn.grid(row=3, column=1, padx=5, pady=5)
         
+        # 3D Effect controls
+        effect_frame = ttk.LabelFrame(self.control_frame, text="3D Effect")
+        effect_frame.pack(fill=tk.X, pady=5)
+        
+        # Bulge strength
+        ttk.Label(effect_frame, text="Bulge Strength:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        self.bulge_strength_var = tk.DoubleVar(value=self.image_processor.bulge_strength)
+        bulge_strength_scale = ttk.Scale(effect_frame, from_=0.1, to=1.0, variable=self.bulge_strength_var, orient=tk.HORIZONTAL)
+        bulge_strength_scale.grid(row=0, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Smoothness
+        ttk.Label(effect_frame, text="Smoothness:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        self.smoothness_var = tk.IntVar(value=self.image_processor.smoothness)
+        smoothness_scale = ttk.Scale(effect_frame, from_=3, to=31, variable=self.smoothness_var, orient=tk.HORIZONTAL)
+        smoothness_scale.grid(row=1, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Light intensity
+        ttk.Label(effect_frame, text="Light Intensity:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
+        self.light_intensity_var = tk.DoubleVar(value=self.image_processor.light_intensity)
+        light_intensity_scale = ttk.Scale(effect_frame, from_=0.1, to=2.0, variable=self.light_intensity_var, orient=tk.HORIZONTAL)
+        light_intensity_scale.grid(row=2, column=1, padx=5, pady=5, sticky=tk.EW)
+        
+        # Ambient light
+        ttk.Label(effect_frame, text="Ambient Light:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=5)
+        self.ambient_light_var = tk.DoubleVar(value=self.image_processor.ambient_light)
+        ambient_light_scale = ttk.Scale(effect_frame, from_=0.0, to=1.0, variable=self.ambient_light_var, orient=tk.HORIZONTAL)
+        ambient_light_scale.grid(row=3, column=1, padx=5, pady=5, sticky=tk.EW)
+        
         # Action buttons
         actions_frame = ttk.LabelFrame(self.control_frame, text="Actions")
         actions_frame.pack(fill=tk.X, pady=5)
@@ -209,8 +255,11 @@ class VoronoiGeneratorUI:
         generate_btn.pack(fill=tk.X, padx=5, pady=5)
         
         # Save button
-        save_btn = ttk.Button(actions_frame, text="Save Image", command=self.save_image)
-        save_btn.pack(fill=tk.X, padx=5, pady=5)
+        save_original_btn = ttk.Button(actions_frame, text="Save Original Image", command=lambda: self.save_image("original"))
+        save_original_btn.pack(fill=tk.X, padx=5, pady=5)
+        
+        save_processed_btn = ttk.Button(actions_frame, text="Save 3D Effect Image", command=lambda: self.save_image("processed"))
+        save_processed_btn.pack(fill=tk.X, padx=5, pady=5)
     
     def choose_color(self, color_type):
         color = colorchooser.askcolor(title=f"Choose {color_type} color")[0]
@@ -236,49 +285,83 @@ class VoronoiGeneratorUI:
         self.generator.edge_thickness = self.edge_thickness_var.get()
         self.generator.point_size = self.point_size_var.get()
         
-        # Generate the Voronoi diagram
+        # Update image processor parameters
+        self.image_processor.bulge_strength = self.bulge_strength_var.get()
+        self.image_processor.smoothness = self.smoothness_var.get()
+        if self.image_processor.smoothness % 2 == 0:  # Ensure smoothness is odd
+            self.image_processor.smoothness += 1
+        self.image_processor.light_intensity = self.light_intensity_var.get()
+        self.image_processor.ambient_light = self.ambient_light_var.get()
+        
         try:
+            # Generate the Voronoi diagram
             self.current_image, _ = self.generator.generate_voronoi()
             
-            # Convert OpenCV image (BGR) to PIL Image (RGB)
-            pil_image = Image.fromarray(cv2.cvtColor(self.current_image, cv2.COLOR_BGR2RGB))
+            # Process the image to create 3D effect
+            self.processed_image, _, _ = self.image_processor.create_3d_effect(self.current_image)
             
-            # Resize image to fit canvas if needed
-            canvas_width = self.canvas.winfo_width()
-            canvas_height = self.canvas.winfo_height()
+            # Display both images
+            self.display_images()
             
-            if canvas_width > 1 and canvas_height > 1:  # Check if canvas has been drawn
-                # Calculate scaling factor to fit image in canvas
-                scale_width = canvas_width / self.generator.width
-                scale_height = canvas_height / self.generator.height
-                scale = min(scale_width, scale_height)
-                
-                # Resize image
-                new_width = int(self.generator.width * scale)
-                new_height = int(self.generator.height * scale)
-                pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
-            
-            # Convert PIL Image to PhotoImage
-            self.photo_image = ImageTk.PhotoImage(pil_image)
-            
-            # Update canvas
-            self.canvas.delete("all")
-            self.canvas.create_image(
-                self.canvas.winfo_width() // 2,
-                self.canvas.winfo_height() // 2,
-                anchor=tk.CENTER,
-                image=self.photo_image
-            )
         except Exception as e:
             print(f"Error generating Voronoi diagram: {e}")
     
-    def save_image(self):
+    def display_images(self):
+        # Display original image
+        self.display_image(self.current_image, self.canvas_original, "original")
+        
+        # Display processed image
+        self.display_image(self.processed_image, self.canvas_processed, "processed")
+    
+    def display_image(self, image, canvas, image_type):
+        if image is None:
+            return
+            
+        # Convert OpenCV image (BGR) to PIL Image (RGB)
+        pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        
+        # Resize image to fit canvas if needed
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
+        
+        if canvas_width > 1 and canvas_height > 1:  # Check if canvas has been drawn
+            # Calculate scaling factor to fit image in canvas
+            scale_width = canvas_width / image.shape[1]
+            scale_height = canvas_height / image.shape[0]
+            scale = min(scale_width, scale_height)
+            
+            # Resize image
+            new_width = int(image.shape[1] * scale)
+            new_height = int(image.shape[0] * scale)
+            pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Convert PIL Image to PhotoImage
+        if image_type == "original":
+            self.photo_image_original = ImageTk.PhotoImage(pil_image)
+            photo_image = self.photo_image_original
+        else:
+            self.photo_image_processed = ImageTk.PhotoImage(pil_image)
+            photo_image = self.photo_image_processed
+        
+        # Update canvas
+        canvas.delete("all")
+        canvas.create_image(
+            canvas.winfo_width() // 2,
+            canvas.winfo_height() // 2,
+            anchor=tk.CENTER,
+            image=photo_image
+        )
+    
+    def save_image(self, image_type):
         file_path = filedialog.asksaveasfilename(
             defaultextension=".png",
             filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg"), ("All files", "*.*")]
         )
-        if file_path and self.current_image is not None:
-            cv2.imwrite(file_path, self.current_image)
+        if file_path:
+            if image_type == "original" and self.current_image is not None:
+                cv2.imwrite(file_path, self.current_image)
+            elif image_type == "processed" and self.processed_image is not None:
+                cv2.imwrite(file_path, self.processed_image)
 
 def main():
     root = tk.Tk()
@@ -287,7 +370,7 @@ def main():
     # Update image when window is resized
     def on_resize(event):
         if hasattr(app, 'current_image') and app.current_image is not None:
-            app.generate_voronoi()
+            app.display_images()
     
     root.bind("<Configure>", on_resize)
     root.mainloop()

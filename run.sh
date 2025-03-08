@@ -20,7 +20,7 @@ echo "Installing dependencies..."
 pip install -r requirements.txt
 
 # Run the application
-echo "Starting Voronoi Pattern Generator..."
+echo "Starting Voronoi Pattern Generator with 3D Bulge Effect..."
 python3 voronoi_generator_simple.py
 
 # Deactivate virtual environment
