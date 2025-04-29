@@ -1,0 +1,25 @@
+{
+  "width": 1024,
+  "height": 768,
+  "num_images": 3,
+  "min_points": 30,
+  "max_points": 150,
+  "edge_thickness": 2,
+  "show_points": true,
+  
+  "bulge_strength": 0.7,
+  "roundness": 1.5,
+  "smoothness": 11,
+  "shadow_depth": 0.8,
+  "light_intensity": 1.4,
+  "ambient_light": 0.2,
+  
+  "surface_enabled": true,
+  "surface_scale": 0.5,
+  "surface_complexity": 3.0,
+  
+  "wetness": 0.9,
+  "specular_intensity": 1.2,
+  "specular_power": 20.0,
+  "light_direction": [0.3, 0.3, 1.0]
+} 

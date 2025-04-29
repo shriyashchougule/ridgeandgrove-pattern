@@ -181,6 +181,8 @@ class ImageProcessor:
         
         # Apply light intensity and ambient light
         lighting = self.ambient_light + lighting * self.light_intensity
+        
+        # Ensure lighting values are between 0 and 1
         lighting = np.clip(lighting, 0, 1)
         
         # Compute specular highlights for wet appearance
@@ -224,7 +226,24 @@ class ImageProcessor:
         # Apply lighting with wet surface effect
         result = self.apply_lighting(normal_map, height_map, image)
         
-        # Enhance contrast
-        result = cv2.convertScaleAbs(result, alpha=1.1, beta=5)
+        # Enhance contrast and apply balanced lighting
+        # Modified to produce more balanced output with better contrast
+        alpha = 1.2  # Higher alpha = more contrast
+        beta = 30    # Positive beta = brighter overall
+        result = cv2.convertScaleAbs(result, alpha=alpha, beta=beta)
+        
+        # Apply a subtle vignette effect to darken edges
+        rows, cols = result.shape[:2]
+        kernel_x = cv2.getGaussianKernel(cols, cols/2)  # Wider kernel = more gradual vignette
+        kernel_y = cv2.getGaussianKernel(rows, rows/2)
+        kernel = kernel_y * kernel_x.T
+        
+        # Normalize kernel to range 0.6-1.0 instead of 0-1 to prevent dark edges
+        kernel = (kernel / np.max(kernel)) * 0.4 + 0.6  # min value is 0.6, max is 1.0
+        mask = (255 * kernel).astype(np.uint8)
+        
+        # Apply mild vignette effect
+        for i in range(3):
+            result[:, :, i] = cv2.multiply(result[:, :, i], mask, scale=1/255)
         
         return result, height_map, normal_map 
